@@ -4,3 +4,7 @@ curl -i -X POST http://127.0.0.1:3000/418
 # GET /418: first request and repeat
 curl -sS -D - -o cache/curl-418.jpg http://127.0.0.1:3000/418
 curl -sS -D - -o cache/curl-418.jpg http://127.0.0.1:3000/418
+# PUT /200 and verify the saved JPEG
+curl -i -X PUT -H 'Content-Type: image/jpeg' --data-binary '@cache/curl-418.jpg' http://127.0.0.1:3000/200
+curl -sS -D - -o cache/curl-200-after-put.jpg http://127.0.0.1:3000/200
+cmp cache/curl-418.jpg cache/curl-200-after-put.jpg && echo "JPEG files match"

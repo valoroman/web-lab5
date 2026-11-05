@@ -108,6 +108,27 @@ async function main() {
     const filePath = path.join(cacheDir, `${code}.jpg`);
 
     try {
+           if (request.method === 'PUT') {
+        const chunks = [];
+
+        for await (const chunk of request) {
+          chunks.push(chunk);
+        }
+
+        const bytes = Buffer.concat(chunks);
+
+        if (bytes.length === 0) {
+          response.writeHead(400, headers);
+          response.end('Request body must contain image data\n');
+          return;
+        }
+
+        await saveImage(filePath, bytes);
+        response.writeHead(201, headers);
+        response.end('Image saved\n');
+        return;
+      }
+
       if (request.method === 'GET') {
         const image = await getImage(code, filePath);
 

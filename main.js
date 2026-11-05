@@ -33,11 +33,29 @@ async function main() {
     return;
   }
 
-  const server = http.createServer(async (_request, response) => {
-    response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
-    response.end('Not found\n');
-  });
+  const allowedMethods = ['GET', 'PUT', 'DELETE'];
 
+  const server = http.createServer(async (request, response) => {
+    const headers = { 'Content-Type': 'text/plain; charset=utf-8' };
+
+    if (!allowedMethods.includes(request.method)) {
+      response.writeHead(405, { ...headers, Allow: allowedMethods.join(', ') });
+      response.end('Method not allowed\n');
+      return;
+    }
+
+    const pathname = request.url.split('?', 1)[0];
+    const match = /^\/([1-5]\d{2})$/.exec(pathname);
+
+    if (!match) {
+      response.writeHead(404, headers);
+      response.end('Expected a status code in the path, for example /418\n');
+      return;
+    }
+
+    response.writeHead(404, headers);
+    response.end(`Image ${match[1]} not found\n`);
+  });
   try {
     server.listen(portNumber, host);
     await once(server, 'listening');

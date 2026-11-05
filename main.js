@@ -1,9 +1,60 @@
 const { Command } = require('commander');
 const http = require('node:http');
 const { once } = require('node:events');
-const { mkdir } = require('node:fs/promises');
+const { mkdir, readFile, writeFile, rename, rm } = require('node:fs/promises');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
+const superagent = require('superagent');
 
+async function saveImage(filePath, bytes) {
+  const temporaryPath = `${filePath}.${randomUUID()}.tmp`;
+
+  try {
+    await writeFile(temporaryPath, bytes);
+    await rename(temporaryPath, filePath);
+  } catch (error) {
+    await rm(temporaryPath, { force: true });
+    throw error;
+  }
+}
+
+async function getImage(code, filePath) {
+  try {
+    return { bytes: await readFile(filePath), source: 'cache' };
+  } catch (error) {
+    if (error.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+
+  const bytes = await downloadImage(code);
+  if (bytes === null) {
+    return null;
+  }
+
+  await saveImage(filePath, bytes);
+  return { bytes, source: 'http.cat' };
+}
+async function downloadImage(code) {
+  try {
+    const result = await superagent
+      .get(`https://http.cat/${code}`)
+      .buffer(true)
+      .timeout(8000);
+
+    if (
+      result.type !== 'image/jpeg' ||
+      !Buffer.isBuffer(result.body) ||
+      result.body.length === 0
+    ) {
+      return null;
+    }
+
+    return result.body;
+  } catch {
+    return null;
+  }
+}
 async function main() {
   const program = new Command();
 
@@ -47,14 +98,37 @@ async function main() {
     const pathname = request.url.split('?', 1)[0];
     const match = /^\/([1-5]\d{2})$/.exec(pathname);
 
-    if (!match) {
+       if (!match) {
       response.writeHead(404, headers);
       response.end('Expected a status code in the path, for example /418\n');
       return;
     }
 
-    response.writeHead(404, headers);
-    response.end(`Image ${match[1]} not found\n`);
+    const code = match[1];
+    const filePath = path.join(cacheDir, `${code}.jpg`);
+
+    try {
+      if (request.method === 'GET') {
+        const image = await getImage(code, filePath);
+
+        if (image !== null) {
+          response.writeHead(200, {
+            'Content-Type': 'image/jpeg',
+            'Content-Length': image.bytes.length,
+            'X-Cache-Source': image.source
+          });
+          response.end(image.bytes);
+          return;
+        }
+      }
+
+      response.writeHead(404, headers);
+      response.end(`Image ${code} not found\n`);
+    } catch (error) {
+      console.error(`Cache error for ${code}: ${error.message}`);
+      response.writeHead(500, headers);
+      response.end('Could not read or save the image\n');
+    }
   });
   try {
     server.listen(portNumber, host);

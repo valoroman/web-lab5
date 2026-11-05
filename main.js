@@ -108,7 +108,25 @@ async function main() {
     const filePath = path.join(cacheDir, `${code}.jpg`);
 
     try {
-           if (request.method === 'PUT') {
+                if (request.method === 'DELETE') {
+        try {
+          await rm(filePath);
+        } catch (error) {
+          if (error.code !== 'ENOENT') {
+            throw error;
+          }
+
+          response.writeHead(404, headers);
+          response.end(`Image ${code} not found in cache\n`);
+          return;
+        }
+
+        response.writeHead(200, headers);
+        response.end('Image deleted\n');
+        return;
+      }
+
+      if (request.method === 'PUT') {
         const chunks = [];
 
         for await (const chunk of request) {

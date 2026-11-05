@@ -1,4 +1,6 @@
 const { Command } = require('commander');
+const http = require('node:http');
+const { once } = require('node:events');
 const { mkdir } = require('node:fs/promises');
 const path = require('node:path');
 
@@ -25,10 +27,24 @@ async function main() {
 
   try {
     await mkdir(cacheDir, { recursive: true });
-    console.log(`Configuration ready for ${host}:${portNumber}`);
-    console.log(`Cache directory: ${cacheDir}`);
   } catch (error) {
     console.error(`Could not create cache directory: ${error.message}`);
+    process.exitCode = 1;
+    return;
+  }
+
+  const server = http.createServer(async (_request, response) => {
+    response.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+    response.end('Not found\n');
+  });
+
+  try {
+    server.listen(portNumber, host);
+    await once(server, 'listening');
+    console.log(`Server listening on ${host}, port ${portNumber}`);
+    console.log(`Cache directory: ${cacheDir}`);
+  } catch (error) {
+    console.error(`Could not start server: ${error.message}`);
     process.exitCode = 1;
   }
 }
